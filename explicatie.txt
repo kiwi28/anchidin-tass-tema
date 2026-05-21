@@ -1,0 +1,187 @@
+================================================================================
+        EXPLICATIA CODULUI SI FLOW-ULUI APLICATIEI DE TESTARE
+================================================================================
+
+Aceasta aplicatie este formata din 2 componente principale:
+
+  1. workshop.php  - Pagina web PHP cu formular de inscriere la workshop
+  2. test_workshop.py - Script Python (Playwright) care testeaza automat formularul
+
+
+================================================================================
+PARTEA 1: FORMULARUL PHP (workshop.php)
+================================================================================
+
+CUM FUNCTIONEAZA:
+
+1. La prima incarcare a paginii (metoda GET), se afiseaza formularul gol.
+   Variabilele $nume, $prenume, $telefon, $varsta primesc valoarea '' (sir gol)
+   prin operatorul ?? (null coalescing).
+
+2. Cand utilizatorul apasa butonul "Trimite inscrierea", browserul trimite
+   datele prin metoda POST la aceeasi pagina.
+
+3. Serverul PHP proceseaza datele:
+   - Citeste valorile din $_POST
+   - Ruleaza validarile pentru fiecare camp:
+     * Nume:     obligatoriu + minim 2 caractere
+     * Prenume:  obligatoriu
+     * Telefon:  obligatoriu + exact 10 cifre (regex: /^[0-9]{10}$/)
+     * Varsta:   obligatorie + intre 18 si 99 ani
+   - Daca o validare esueaza, se populeaza variabila de eroare corespunzatoare
+     (ex: $errNume = 'NUMELE ESTE OBLIGATORIU')
+
+4. La reafisarea paginii:
+   - Campurile isi pastreaza valorile completate (prin atributul value)
+   - Daca exista erori, acestea sunt afisate sub fiecare camp intr-un <div>
+     cu clasa "eroare" si atributul data-testid (ex: data-testid="err-nume")
+   - Daca nu exista erori, se afiseaza mesajul de succes intr-un <div>
+     cu atributul data-testid="result"
+
+ELEMENTE CHEIE:
+
+  - htmlspecialchars(): functie PHP care previne atacurile XSS prin
+    convertirea caracterelor speciale HTML in entitati (ex: < devine &lt;)
+
+  - data-testid: atribute HTML personalizate care servesc drept "ancore"
+    pentru testele automate. Testele nu se leaga de clase CSS sau structura
+    DOM, ci de acesti identificatori dedicati testarii.
+
+  - Validarea se face PE SERVER (PHP), nu doar in browser (JavaScript).
+    Asta inseamna ca datele sunt verificate chiar daca cineva dezactiveaza
+    JavaScript-ul sau trimite cereri directe.
+
+
+================================================================================
+PARTEA 2: TESTELE PYTHON (test_workshop.py)
+================================================================================
+
+LIBRARIA PLAYWRIGHT:
+
+Playwright este o unealta de automatizare a browserului dezvoltata de
+Microsoft. Permite controlul programatic al unui browser real (Chromium,
+Firefox, WebKit) pentru testare end-to-end.
+
+Concepte importante:
+  - sync_playwright(): API-ul sincron (blocant) - mai usor de citit
+  - page.goto(url): navigheaza la o adresa
+  - page.fill(selector, value): completeaza un camp de text
+  - page.click(selector): apasa pe un element (buton)
+  - page.inner_text(selector): citeste textul dintr-un element
+  - page.locator(selector): gaseste un element in pagina
+  - page.wait_for_selector(selector): asteapta pana cand elementul apare
+
+CAZURILE DE TESTARE:
+
+  Test 1 - test_empty_submit:
+    Apasa direct butonul de submit fara sa completeze nimic.
+    Verifica ca apar TOATE cele 4 mesaje de eroare obligatorii.
+
+  Test 2 - test_invalid_phone:
+    Completeaza nume si prenume valid, dar telefon prea scurt ("123").
+    Verifica eroarea: "TELEFONUL TREBUIE SA CONTINA EXACT 10 CIFRE"
+
+  Test 3 - test_phone_with_letters:
+    Completeaza telefon cu litere amestecate ("07ab345678").
+    Verifica aceeasi eroare de format (regex-ul respinge orice nu e cifra).
+
+  Test 4 - test_underage:
+    Completeaza varsta 16 ani.
+    Verifica eroarea: "TREBUIE SA AI MINIM 18 ANI PENTRU INSCRIERE"
+
+  Test 5 - test_short_name:
+    Completeaza nume cu o singura litera ("A").
+    Verifica eroarea: "NUMELE TREBUIE SA AIBA MINIM 2 CARACTERE"
+
+  Test 6 - test_success:
+    Completeaza toate campurile corect.
+    Verifica ca apare mesajul "Inscriere reusita!" si toate datele introduse.
+
+  Test 7 - test_random_fuzz:
+    Genereaza date aleatorii si verifica ca formularul reactioneaza corect
+    in ORICE situatie (fie eroare, fie succes). Acest test detecteaza
+    cazuri limita neacoperite de testele manuale (ex: nume foarte lung,
+    prenume gol, telefon cu caractere speciale).
+
+
+================================================================================
+FLOW-UL COMPLET AL APLICATIEI
+================================================================================
+
+Din perspectiva utilizatorului:
+
+  1. Utilizatorul deschide http://localhost:8000/workshop.php in browser
+  2. Completeaza formularul cu datele personale
+  3. Apasa butonul "Trimite inscrierea"
+  4. Serverul PHP valideaza datele:
+     a) Daca sunt erori -> pagina se reincarca afisand mesajele de eroare
+        si pastrand datele deja completate
+     b) Daca nu sunt erori -> pagina afiseaza confirmarea inscrierii
+
+Din perspectiva testarii automate:
+
+  1. Scriptul Python porneste un browser Chromium/Edge controlat programatic
+  2. Pentru fiecare test, navigheaza la pagina formularului
+  3. Interactioneaza cu elementele paginii (completeaza campuri, apasa butoane)
+  4. Citeste rezultatul afisat in pagina
+  5. Compara rezultatul cu valoarea asteptata folosind assert
+  6. Daca assert esueaza, testul pica si se afiseaza eroarea
+  7. Daca toate assert-urile trec, testul este marcat ca "PASS"
+
+
+================================================================================
+CUM SE RULEAZA
+================================================================================
+
+Cerinte:
+  - PHP 7.4+ (pentru operatorul ??)
+  - Python 3.7+
+  - pip (gestionarul de pachete Python)
+
+Instalare dependinte:
+
+  1. Cloneaza/deschide proiectul si intra in director:
+     cd /home/alexkiwi/projects/temp/anchidin-tass-tema
+
+  2. Instaleaza dependintele Python din requirements.txt:
+     pip install -r requirements.txt
+
+  3. Descarca browserul Chromium pentru Playwright (necesar o singura data):
+     python -m playwright install chromium
+
+Pasi de rulare:
+
+  1. Porneste serverul PHP (din directorul proiectului):
+     cd /home/alexkiwi/projects/temp/anchidin-tass-tema
+     php -S localhost:8000
+
+  2. Intr-un alt terminal, ruleaza testele:
+     python test_workshop.py
+
+  3. Testele vor deschide o fereastra de browser si vor rula automat.
+     La final, in terminal se va afisa rezultatul fiecarui test.
+
+
+================================================================================
+COMPARATIE CU FISIERELE ORIGINALE (Tass.php / Tas2.py)
+================================================================================
+
+Asemanari:
+  - Aceeasi structura: PHP cu validare server-side + Python cu Playwright
+  - Acelasi tip de atribute data-testid pentru identificarea elementelor
+  - Functii de generare random pentru fuzzing
+  - Aceeasi abordare de testare cu assert-uri
+
+Diferente:
+  - Tema diferita: inscriere workshop vs contact simplu
+  - 4 campuri in loc de 3 (adaugat prenume si inlocuit data cu telefon+varsta)
+  - Validari mai complexe: regex pentru telefon, range check pentru varsta,
+    lungime minima pentru nume
+  - Mai multe cazuri de testare (7 fata de 4)
+  - Test dedicat pentru telefon cu litere (test_phone_with_letters)
+  - Functii helper specializate: random_telefon(), random_varsta()
+    care reflecta domeniul specific al formularului
+  - htmlspecialchars() pentru securitate XSS (imbunatatire)
+  - Stilizare CSS inclusa pentru o prezentare mai clara
+
+================================================================================
